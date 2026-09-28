@@ -465,14 +465,14 @@ async function deliverOtp({ code, destination, channel }) {
     } catch (error) {
       const friendlyError = explainSmtpError(error);
       console.error(`[FKAMS SMTP] ${friendlyError}`);
-      throw new Error(friendlyError);
+      throw Object.assign(new Error('Unable to send the verification code. Check the SMTP settings in the Render dashboard.'), { statusCode: 503 });
     }
   }
   if (process.env.OTP_PROVIDER === 'console' || !process.env.OTP_PROVIDER) {
     console.log(`[FKAMS OTP] ${channel} to ${maskDestination(destination, channel)}: ${code}`);
     return;
   }
-  throw new Error('OTP provider is configured but no delivery adapter is installed.');
+  throw Object.assign(new Error('OTP email delivery is not configured. Set OTP_PROVIDER=smtp and configure SMTP_* values in Render.'), { statusCode: 503 });
 }
 async function deliverAdmissionNotice({ destination, name, status, admissionNumber, username, temporaryPassword }) {
   if (!destination || !destination.includes('@')) throw Object.assign(new Error('A valid parent email is required before changing the application status.'), { statusCode: 422 });

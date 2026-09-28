@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, BookOpen, BriefcaseBusiness, Bus, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleDollarSign, Clock3, FileText, GraduationCap, LayoutDashboard, Library, LogOut, Menu, Newspaper, Package, Search, Settings, ShieldCheck, Sparkles, UserCircle, Users, X } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
+import { API_ORIGIN } from '../lib/api';
 
 const itemMap = [
   ['add-department', 'addDepartment', BriefcaseBusiness], ['our-programs', 'ourPrograms', BookOpen], ['my-courses', 'myCourses', BookOpen], ['ai-engine', 'aiEngine', Sparkles],
   ['overview', 'overview', LayoutDashboard], ['students', 'students', GraduationCap], ['admissions', 'admissions', Users], ['academics', 'academics', BookOpen], ['discipline', 'discipline', ShieldCheck], ['permission', 'permission', ShieldCheck], ['security-guard', 'security', ShieldCheck], ['teacher_attendance', 'teacherAttendance', Clock3], ['attendance', 'attendance', CalendarDays], ['finance', 'finance', CircleDollarSign], ['library', 'library', Library], ['transport', 'transport', Bus], ['inventory', 'inventory', Package], ['news', 'news', Newspaper], ['notices', 'notices', Bell], ['documents', 'documents', FileText], ['timetable', 'timetable', CalendarDays], ['teachers', 'teachers', Users], ['reports', 'reports', FileText], ['homework', 'academics', BookOpen], ['feeding', 'inventory', Package], ['expenses', 'finance', CircleDollarSign], ['loans', 'library', Library], ['settings', 'settings', Settings],
-    ['parents', 'parents', Users],
+  ['parents', 'parents', Users],
 ];
 
 const roleItems = {
@@ -44,7 +45,7 @@ export default function AppShell({ t, language, onLanguageChange, user, activePa
                 ? 'Security guard'
                 : id === 'teacher_attendance'
                   ? 'Department attendance'
-                : (t[key] || (id === 'academic-years' ? 'Academic year' : id)),
+                  : (t[key] || (id === 'academic-years' ? 'Academic year' : id)),
     ]),
   );
 
@@ -227,6 +228,6 @@ export default function AppShell({ t, language, onLanguageChange, user, activePa
 function Avatar({ src, initials }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
-  const imageUrl = src && (src.startsWith('http://') || src.startsWith('https://') ? src : `${(import.meta.env.VITE_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '')}/${src.replace(/^\//, '')}`);
+  const imageUrl = src && (src.startsWith('http://') || src.startsWith('https://') ? src : `${API_ORIGIN}/${src.replace(/^\//, '')}`);
   return imageUrl && !failed ? <img src={imageUrl} alt="" onError={() => setFailed(true)} className="h-8 w-8 rounded-full object-cover" /> : <span className="grid h-8 w-8 place-items-center rounded-full bg-amber-100 text-[10px] font-extrabold text-amber-800">{initials}</span>;
 }

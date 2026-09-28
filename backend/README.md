@@ -78,6 +78,39 @@ The API listens on `http://localhost:4000` by default.
 
 To deliver OTPs by email, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and optionally `SMTP_FROM`/`SMTP_SECURE` in `.env`. Without SMTP settings, development OTPs are printed in the backend console.
 
+## Deploy on Render
+
+Create a Render Web Service for this repository with:
+
+- Root Directory: `backend`
+- Build Command: `npm install`
+- Start Command: `npm start`
+- Health Check Path: `/api/health`
+
+Set these in the Render service's Environment tab. Do not put production secrets in the repository:
+
+```env
+NODE_ENV=production
+FRONTEND_ORIGIN=https://your-frontend-domain
+JWT_SECRET=generate-a-long-random-secret
+DB_HOST=your-supabase-pooler-host
+DB_PORT=5432
+DB_USER=your-supabase-project-user
+DB_PASSWORD=your-supabase-database-password
+DB_NAME=postgres
+DB_SSL=true
+OTP_PROVIDER=smtp
+OTP_CHANNEL=email
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-gmail-address
+SMTP_PASSWORD=your-google-app-password
+SMTP_FROM=your-gmail-address
+```
+
+Render supplies `PORT` automatically. `VITE_API_BASE_URL` belongs to the frontend service, not this backend. If `/api/health` is healthy but login returns `503`, check `JWT_SECRET` and the backend logs for `[FKAMS SMTP]`; an OTP delivery failure now reports an OTP/SMTP-specific message instead of incorrectly reporting a database connection failure.
+
 Admission decisions notify the parent using the submitted phone number or email. Configure the same SMTP settings for email delivery. For SMS delivery, configure `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM`; without a provider, the notification is printed in the backend console. Approved applicants receive their generated admission number as the student login username and a generated temporary password.
 
 ## Main routes

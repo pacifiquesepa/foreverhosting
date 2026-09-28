@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Brain, CheckCircle2, Cpu, Eye, EyeOff, FilePlus, ImageUp, Loader2, MessageSquareText, Paperclip, Sparkles } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 const AI_ENGINE_URL = import.meta.env.VITE_AI_ENGINE_URL || 'http://localhost:8001';
 const REQUEST_TIMEOUT_MS = 4000;
@@ -23,7 +24,7 @@ function normalizeLabel(value) {
     return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const BACKEND_URL = API_BASE_URL;
 
 export default function AIEnginePage({ user, onBack, onNavigate }) {
     const buildAssessmentRef = useRef(null);

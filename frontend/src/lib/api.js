@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const normalizedApiBase = configuredApiBase.replace(/\/+$/, '');
+export const API_BASE_URL = /\/api$/i.test(normalizedApiBase) ? normalizedApiBase : `${normalizedApiBase}/api`;
+export const API_ORIGIN = API_BASE_URL.replace(/\/api$/i, '');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000/api',
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
