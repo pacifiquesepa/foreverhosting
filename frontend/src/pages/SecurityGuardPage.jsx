@@ -176,23 +176,6 @@ export default function SecurityGuardPage({ user, onBack, language = 'en' }) {
   };
 
   const createRequest = async (type, form) => {
-    const entry = {
-      id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      type,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      comment: '',
-      fullName: form.fullName,
-      email: form.email,
-      phone: form.phone,
-      purpose: form.purpose,
-      arrivalTime: form.arrivalTime,
-      description: form.description,
-      studentName: form.studentName || '',
-      photo: form.photo || '',
-      message: buildTemplateMessage({ fullName: form.fullName }, 'pending')[locale],
-    };
-
     try {
       const { data } = await api.post('/security-guard/visits', {
         type,
@@ -208,32 +191,31 @@ export default function SecurityGuardPage({ user, onBack, language = 'en' }) {
       });
       const saved = { ...data.request, type: data.request.visitor_type || type, fullName: data.request.full_name || form.fullName, email: data.request.email || form.email, phone: data.request.phone || form.phone, purpose: data.request.purpose || form.purpose, arrivalTime: data.request.arrival_time || form.arrivalTime, description: data.request.description || form.description, studentName: data.request.student_name || form.studentName || '', photo: data.request.photo || form.photo || '', status: data.request.status || 'pending', comment: data.request.review_comment || '', message: buildTemplateMessage({ fullName: data.request.full_name || form.fullName }, 'pending')[locale] };
       setRequests((current) => [saved, ...current]);
+      setNotice(`${type === 'guest' ? 'Guest' : 'Parent'} request submitted and sent for review.`);
+      setError('');
+      return true;
     } catch (requestError) {
-      setRequests((current) => [entry, ...current]);
+      setError(requestError.response?.data?.error || 'Unable to submit visitor request. Please try again.');
+      return false;
     }
-
-    setNotice(`${type === 'guest' ? 'Guest' : 'Parent'} request submitted and sent for review.`);
-    setError('');
   };
 
-  const handleGuestSubmit = (event) => {
+  const handleGuestSubmit = async (event) => {
     event.preventDefault();
     if (!guestForm.fullName || !guestForm.email || !guestForm.phone || !guestForm.arrivalTime) {
       setError('Full name, email, phone, and arrival time are required.');
       return;
     }
-    createRequest('guest', guestForm);
-    setGuestForm({ fullName: '', email: '', phone: '', purpose: 'visit', arrivalTime: '', description: '', photo: '' });
+    if (await createRequest('guest', guestForm)) setGuestForm({ fullName: '', email: '', phone: '', purpose: 'visit', arrivalTime: '', description: '', photo: '' });
   };
 
-  const handleParentSubmit = (event) => {
+  const handleParentSubmit = async (event) => {
     event.preventDefault();
     if (!parentForm.fullName || !parentForm.email || !parentForm.phone || !parentForm.studentName || !parentForm.arrivalTime) {
       setError('Parent name, email, phone, student name, and arrival time are required.');
       return;
     }
-    createRequest('parent', parentForm);
-    setParentForm({ fullName: '', email: '', phone: '', purpose: 'visit', studentName: '', arrivalTime: '', description: '', photo: '' });
+    if (await createRequest('parent', parentForm)) setParentForm({ fullName: '', email: '', phone: '', purpose: 'visit', studentName: '', arrivalTime: '', description: '', photo: '' });
   };
 
   const updateDecision = async (id, nextStatus, comment) => {

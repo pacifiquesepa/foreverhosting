@@ -442,11 +442,18 @@ function distanceInMeters(latitudeOne, longitudeOne, latitudeTwo, longitudeTwo) 
 }
 function explainSmtpError(error) {
   const message = error && (error.message || String(error));
-  if (!message) return 'SMTP delivery failed.';
-  if (/535|5\.7\.9|WebLoginRequired|web login required|Invalid login/i.test(message)) {
-    return 'Gmail rejected the SMTP login. Generate a 16-character Google App Password for the Gmail account and set it as SMTP_PASSWORD in backend/.env. Do not use your normal Gmail password.';
+  const code = String(error?.code || '').toUpperCase();
+  const responseCode = Number(error?.responseCode || 0);
+  if (code === 'EAUTH' || responseCode === 535 || /535|5\.7\.9|WebLoginRequired|web login required|Invalid login/i.test(message || '')) {
+    return 'Gmail rejected SMTP authentication. Check SMTP_USER and replace SMTP_PASSWORD with a valid 16-character Google App Password in Render. Do not use your normal Gmail password.';
   }
-  return message;
+  if (code === 'EENVELOPE' || responseCode === 550 || /invalid recipient|no recipients|recipient address rejected/i.test(message || '')) {
+    return 'The SMTP server rejected the recipient. Set the admin account email to a real inbox that can receive messages.';
+  }
+  if (['ECONNECTION', 'ECONNREFUSED', 'ETIMEDOUT', 'ESOCKET', 'EDNS'].includes(code)) {
+    return 'The backend could not connect to SMTP. Check SMTP_HOST, SMTP_PORT, and SMTP_SECURE in Render.';
+  }
+  return 'SMTP delivery failed. Check the SMTP settings and backend logs in Render.';
 }
 function createSmtpTransport() {
   return nodemailer.createTransport({
@@ -464,8 +471,8 @@ async function deliverOtp({ code, destination, channel }) {
       return;
     } catch (error) {
       const friendlyError = explainSmtpError(error);
-      console.error(`[FKAMS SMTP] ${friendlyError}`);
-      throw Object.assign(new Error('Unable to send the verification code. Check the SMTP settings in the Render dashboard.'), { statusCode: 503 });
+      console.error(`[FKAMS SMTP] ${friendlyError} (code=${error?.code || 'unknown'}, response=${error?.responseCode || 'unknown'})`);
+      throw Object.assign(new Error(friendlyError), { statusCode: 503 });
     }
   }
   if (process.env.OTP_PROVIDER === 'console' || !process.env.OTP_PROVIDER) {
@@ -1014,6 +1021,7 @@ app.patch('/api/security-guard/visits/:id/status', requireAuth, authorize('admin
     const [rows] = await pool.query('SELECT * FROM security_visit_requests WHERE id = ?', [requestId]);
     const currentRequest = rows[0];
     if (!currentRequest) return res.status(404).json({ error: 'Visitor request not found.' });
+    if (currentRequest.status === status) return res.json({ request: { ...currentRequest, photo: currentRequest.photo_data || null }, message: 'Visitor request already has this status.' });
 
     if (req.user.role === 'security_guard') {
       const activePermission = await getActiveSecurityGuardPermission();
@@ -1115,8 +1123,8 @@ app.patch('/api/users/:id/role', requireAuth, authorize('admin'), async (req, re
   const userId = Number(req.params.id);
   if (!Number.isInteger(userId) || !roles.includes(req.body?.role)) return res.status(400).json({ error: 'A valid user id and role are required.' });
   if (userId === Number(req.user.sub) && req.body.role !== 'admin') return res.status(400).json({ error: 'You cannot remove your own admin role.' });
-  const [result] = await pool.query('UPDATE users SET role = ? WHERE id = ? RETURNING id', [req.body.role, userId]);
-  if (!result[0]) return res.status(404).json({ error: 'User not found in the active database.' });
+  const [result] = await pool.query('UPDATE users SET role = ? WHERE id = ?', [req.body.role, userId]);
+  if (!result.affectedRows) return res.status(404).json({ error: 'User not found in the active database.' });
   res.json({ message: 'User role updated.' });
 });
 
@@ -2859,7 +2867,7 @@ app.post('/api/transport/routes', requireAuth, authorize('admin', 'dos', 'accoun
 app.post('/api/transport/assign', requireAuth, authorize('admin', 'dos', 'accountant'), async (req, res) => { const studentId = Number(req.body?.studentId); const routeId = Number(req.body?.routeId); if (!Number.isInteger(studentId) || !Number.isInteger(routeId) || !req.body.pickupPoint?.trim()) return res.status(400).json({ error: 'Student, route and pickup point are required.' }); const [[route]] = await pool.query('SELECT capacity FROM transport_routes WHERE id = ?', [routeId]); if (!route) return res.status(404).json({ error: 'Transport route not found.' }); const [[existing]] = await pool.query('SELECT route_id AS routeId FROM student_transport WHERE student_id = ?', [studentId]); if (!existing || Number(existing.routeId) !== routeId) { const [[usage]] = await pool.query('SELECT COUNT(*) AS total FROM student_transport WHERE route_id = ?', [routeId]); if (Number(usage.total) >= Number(route.capacity)) return res.status(409).json({ error: 'This route has reached its capacity.' }); } await pool.query('INSERT INTO student_transport (student_id, route_id, pickup_point) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE route_id = VALUES(route_id), pickup_point = VALUES(pickup_point)', [studentId, routeId, req.body.pickupPoint.trim()]); res.status(201).json({ message: 'Student transport assigned.' }); });
 app.get('/api/transport/assignments', requireAuth, async (req, res) => { const params = []; let query = 'SELECT st.student_id AS studentId, s.full_name AS studentName, s.class_name AS className, st.route_id AS routeId, r.name AS routeName, r.bus_number AS busNumber, r.driver_name AS driverName, st.pickup_point AS pickupPoint FROM student_transport st JOIN students s ON s.id = st.student_id JOIN transport_routes r ON r.id = st.route_id'; if (req.user.role === 'student') { query += ' WHERE s.user_id = ?'; params.push(req.user.sub); } else if (req.user.role === 'parent') { query += ' JOIN parent_students ps ON ps.student_id = s.id WHERE ps.parent_id = ?'; params.push(req.user.sub); } else if (!['admin', 'dos', 'teacher', 'accountant', 'librarian'].includes(req.user.role)) return res.status(403).json({ error: 'You do not have permission to view transport assignments.' }); query += ' ORDER BY r.name, s.full_name'; const [rows] = await pool.query(query, params); res.json({ assignments: rows }); });
 
-app.get('/api/inventory', requireAuth, authorize('admin', 'dos', 'accountant'), async (_req, res) => { const [rows] = await pool.query("SELECT i.id, i.name, i.category, i.quantity, i.reorder_level AS reorderLevel, i.unit_cost AS unitCost, i.location, COALESCE((SELECT SUM(t.quantity) FROM inventory_transactions t WHERE t.item_id = i.id AND t.type = 'in' AND t.created_at >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')), 0) AS monthlyAdded FROM inventory_items i ORDER BY i.name"); res.json({ items: rows }); });
+app.get('/api/inventory', requireAuth, authorize('admin', 'dos', 'accountant'), async (_req, res) => { const [rows] = await pool.query("SELECT i.id, i.name, i.category, i.quantity, i.reorder_level AS reorderLevel, i.unit_cost AS unitCost, i.location, COALESCE((SELECT SUM(t.quantity) FROM inventory_transactions t WHERE t.item_id = i.id AND t.type = 'in' AND t.created_at >= date_trunc('month', CURRENT_DATE)::date), 0) AS monthlyAdded FROM inventory_items i ORDER BY i.name"); res.json({ items: rows }); });
 app.post('/api/inventory', requireAuth, authorize('admin', 'dos', 'accountant'), async (req, res) => { const error = bodyErrors(req.body, [['name', 'Item name', 140], ['category', 'Category', 80]]); const quantity = Number(req.body?.quantity); if (error || !Number.isFinite(quantity) || quantity < 0) return res.status(400).json({ error: error || 'A non-negative quantity is required.' }); const connection = await pool.getConnection(); try { await connection.beginTransaction(); const [result] = await connection.query('INSERT INTO inventory_items (name, category, quantity, reorder_level, unit_cost, location, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)', [req.body.name.trim(), req.body.category.trim(), quantity, Number(req.body.reorderLevel || 0), Number(req.body.unitCost || 0), req.body.location?.trim() || null, req.user.sub]); if (quantity > 0) await connection.query('INSERT INTO inventory_transactions (item_id, type, quantity, note, moved_by) VALUES (?, \'in\', ?, ?, ?)', [result.insertId, quantity, 'Initial stock', req.user.sub]); await connection.commit(); res.status(201).json({ id: result.insertId, message: 'Inventory item created.' }); } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); } });
 app.patch('/api/inventory/:id', requireAuth, authorize('admin', 'dos', 'accountant'), async (req, res) => { const error = bodyErrors(req.body, [['name', 'Item name', 140], ['category', 'Category', 80]]); const quantity = Number(req.body?.quantity); if (error || !Number.isFinite(quantity) || quantity < 0) return res.status(400).json({ error: error || 'A non-negative quantity is required.' }); const [result] = await pool.query('UPDATE inventory_items SET name = ?, category = ?, quantity = ?, reorder_level = ?, unit_cost = ?, location = ?, updated_by = ? WHERE id = ?', [req.body.name.trim(), req.body.category.trim(), quantity, Number(req.body.reorderLevel || 0), Number(req.body.unitCost || 0), req.body.location?.trim() || null, req.user.sub, Number(req.params.id)]); if (!result.affectedRows) return res.status(404).json({ error: 'Inventory item not found.' }); res.json({ message: 'Inventory item updated.' }); });
 app.delete('/api/inventory/:id', requireAuth, authorize('admin', 'dos', 'accountant'), async (req, res) => { const [result] = await pool.query('DELETE FROM inventory_items WHERE id = ?', [Number(req.params.id)]); if (!result.affectedRows) return res.status(404).json({ error: 'Inventory item not found.' }); res.json({ message: 'Inventory item deleted.' }); });
