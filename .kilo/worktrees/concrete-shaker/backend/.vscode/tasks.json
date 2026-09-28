@@ -1,0 +1,47 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start FKAMS backend",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"start"
+			],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Seed FKAMS admin",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"seed:admin"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "FKAMS backend syntax check",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Backend syntax check",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--check",
+				"server.js"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
