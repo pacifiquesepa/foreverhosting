@@ -571,6 +571,9 @@ function otpDestination(user) {
 async function issueOtp(user, purpose = 'login') {
   const destination = otpDestination(user);
   if (!destination) throw Object.assign(new Error(`No ${otpChannel} destination is configured for this account.`), { statusCode: 422 });
+  if (otpChannel === 'email' && /@[^@]+\.local$/i.test(destination)) {
+    throw Object.assign(new Error('This account uses a placeholder email address. Update it to a real inbox before requesting an OTP.'), { statusCode: 422 });
+  }
   const request = otpRequests.get(String(user.id));
   if (request && request.availableAt > Date.now()) throw Object.assign(new Error('Please wait before requesting another OTP.'), { statusCode: 429 });
   const code = createOtpCode();
@@ -628,7 +631,8 @@ async function getStudentForUser(user) {
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', database: 'connected', service: 'FKAMS API' });
+    const smtpConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && smtpPassword && !smtpPassword.includes('PUT_YOUR_'));
+    res.json({ status: 'ok', database: 'connected', service: 'FKAMS API', authenticationConfigured: Boolean(jwtSecret), otpChannel, smtpConfigured });
   } catch {
     res.status(503).json({ status: 'degraded', database: 'unavailable', service: 'FKAMS API' });
   }

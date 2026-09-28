@@ -26,7 +26,7 @@ export default function LoginPage({ t, language, onLanguageChange, onAuthenticat
     try {
       const { data } = await api.post('/auth/login', { identifier: form.identifier.trim(), password: form.password });
       if (data.requiresOtp) { setForm((current) => ({ ...current, challengeId: data.challengeId, code: '' })); setNotice(`${t.otpHint} ${data.destination}`); setSecondsLeft(data.expiresInSeconds || 300); setStep('otp'); } else onAuthenticated(data);
-    } catch (requestError) { setError(requestError.response?.data?.error || 'Unable to sign in. Please try again.'); } finally { setBusy(false); }
+    } catch (requestError) { setError(requestError.response?.data?.error || (requestError.response?.status === 503 ? 'Sign-in is temporarily unavailable. Check the backend OTP and email configuration.' : 'Unable to sign in. Please try again.')); } finally { setBusy(false); }
   }
 
   async function submitOtp(event) {

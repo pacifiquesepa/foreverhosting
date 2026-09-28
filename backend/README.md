@@ -107,9 +107,10 @@ SMTP_SECURE=false
 SMTP_USER=your-gmail-address
 SMTP_PASSWORD=your-google-app-password
 SMTP_FROM=your-gmail-address
+ADMIN_EMAIL=your-real-admin-inbox
 ```
 
-Render supplies `PORT` automatically. `VITE_API_BASE_URL` belongs to the frontend service, not this backend. If `/api/health` is healthy but login returns `503`, check `JWT_SECRET` and the backend logs for `[FKAMS SMTP]`; an OTP delivery failure now reports an OTP/SMTP-specific message instead of incorrectly reporting a database connection failure.
+Render supplies `PORT` automatically. `VITE_API_BASE_URL` belongs to the frontend service, not this backend. `ADMIN_EMAIL` must be a real inbox because admin login requires an email OTP; the development placeholder `admin@fkams.local` cannot receive mail. Update the existing admin's email in Supabase or run `npm run seed:admin` with `ADMIN_EMAIL` set. If `/api/health` is healthy but login returns `503`, check `JWT_SECRET` and the backend logs for `[FKAMS SMTP]`; an OTP delivery failure now reports an OTP/SMTP-specific message instead of incorrectly reporting a database connection failure.
 
 Admission decisions notify the parent using the submitted phone number or email. Configure the same SMTP settings for email delivery. For SMS delivery, configure `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM`; without a provider, the notification is printed in the backend console. Approved applicants receive their generated admission number as the student login username and a generated temporary password.
 
